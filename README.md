@@ -167,4 +167,117 @@ All R² values are high (> 0.95), but medical images actually show a **better** 
 
 ---
 
-*Analysis 2, 3, 4, and 5 will be appended as they are completed.*
+## Analysis 2: Frequency Band Energy Distribution
+
+### What This Analysis Measures
+
+SPAI doesn't use the entire frequency spectrum at once. It splits every image into two parts using a **circular mask** in the frequency domain:
+
+- **Low-frequency band** (inside the circle): smooth, large-scale structures
+- **High-frequency band** (outside the circle): fine details, edges, textures, noise
+
+The mask has a fixed **radius of 16** on a **224×224** FFT grid (from SPAI's config). This means only **1.6% of all frequency bins** fall in the low-frequency circle — yet as we'll see, that tiny region captures the overwhelming majority of image energy.
+
+SPAI then feeds the original image, the low-freq filtered image, and the high-freq filtered image through a ViT backbone separately, and compares their feature representations using cosine similarity. **If the high-frequency band contains almost no energy, the high-freq filtered image is essentially blank noise**, and the ViT features extracted from it are meaningless — breaking SPAI's core mechanism.
+
+### Metrics Explained
+
+#### E_low / E_high (Energy Fractions)
+
+After computing the 2D FFT of an image, we measure what percentage of total energy falls inside vs. outside the circular mask.
+
+- **E_low = 95%** means 95% of the image's information is in smooth, low-frequency patterns.
+- **E_high = 5%** means only 5% is in fine details and edges.
+
+#### E_ratio (Low-to-High Ratio)
+
+Simply E_low ÷ E_high. If E_ratio = 40×, the low-frequency band has 40 times more energy than the high-frequency band. Higher values mean the high-freq band is increasingly empty and uninformative.
+
+#### Spectral Centroid
+
+The "center of mass" of the power spectrum. Think of it like a balance point — if most energy is at low frequencies, the centroid is near the center (low value). A higher centroid means energy is more spread across frequencies.
+
+---
+
+### Results
+
+#### Table 1: Energy Distribution Summary
+
+| Group | N | E_low (%) | E_high (%) | E_ratio (L/H) | Spectral Centroid |
+|-------|---|-----------|------------|----------------|-------------------|
+| Real Natural | 150 | 95.72% | **4.28%** | 44× | 2.58 |
+| Synthetic Natural | 150 | 99.71% | **0.29%** | 682× | 0.79 |
+| Real Medical | 150 | 99.47% | **0.53%** | 264× | 0.62 |
+| Synthetic Medical | 150 | 99.44% | **0.56%** | 209× | 0.74 |
+
+#### Table 2: Separability of Real vs. Synthetic (High-Freq Energy)
+
+| Comparison | Δ E_high | KS stat | p-value | Cohen's d | Effect |
+|------------|----------|---------|---------|-----------|--------|
+| Real Natural vs Synthetic Natural | **3.988%** | 0.9267 | 7.86e-70 *** | **1.90** | Large |
+| Real Medical vs Synthetic Medical | **0.027%** | 0.2733 | 2.45e-05 *** | **0.09** | Negligible |
+
+#### Table 3: Separability on Other Energy Metrics
+
+| Metric | Domain | Cohen's d | Effect |
+|--------|--------|-----------|--------|
+| Energy Ratio | Natural | 0.97 | Large |
+| Energy Ratio | Medical | 0.40 | Small |
+| Spectral Centroid | Natural | 1.55 | Large |
+| Spectral Centroid | Medical | 0.45 | Small |
+
+---
+
+### Interpretation
+
+#### Finding 1: Medical images have almost no high-frequency energy
+
+Real natural images put **4.28%** of their energy in the high-frequency band. That may sound small, but it's enough — it contains edges, textures, and fine details that differ between real and AI-generated images.
+
+Real medical X-rays put only **0.53%** in the high-frequency band — roughly **8× less** than natural images. Medical images are dominated by smooth tissue gradients and large anatomical structures, with very little fine-grained texture.
+
+#### Finding 2: The high-frequency gap between real and fake is essentially zero for medical images
+
+This is the most critical finding of Analysis 2:
+
+- **Natural domain**: Real images have 4.28% high-freq energy, synthetic have 0.29% → a gap of **3.99 percentage points**.
+- **Medical domain**: Real images have 0.53%, synthetic have 0.56% → a gap of **0.03 percentage points**.
+
+The gap is **148× smaller** in the medical domain. Cohen's d drops from **1.90** (large, easily separable) to **0.09** (negligible — the distributions are virtually identical).
+
+In practical terms: when SPAI applies its frequency mask to a medical X-ray, the resulting high-frequency image is nearly empty for *both* real and synthetic images. The ViT backbone receives near-identical (near-zero) inputs in both cases, making the cosine similarity scores meaningless.
+
+#### Finding 3: Real medical images are already as "smooth" as synthetic natural images
+
+A striking observation from the data:
+
+| Group | E_high |
+|-------|--------|
+| Real Medical | 0.53% |
+| Synthetic Natural | 0.29% |
+
+Real medical X-rays have comparable high-frequency content to *AI-generated* natural images. The smoothness that SPAI interprets as a sign of AI generation in natural images is simply the **normal baseline** for medical images. This creates a fundamental confusion: the model associates "smooth spectrum" with "fake," but medical images are inherently smooth regardless of whether they're real or AI-generated.
+
+#### Finding 4: The spectral centroid confirms the same pattern
+
+The spectral centroid (center of mass of energy across frequencies) reinforces all the above:
+
+- Natural: centroid shifts from 2.58 (real) to 0.79 (synthetic) — a large, detectable shift.
+- Medical: centroid is at 0.62 (real) vs 0.74 (synthetic) — barely any difference, and both are already very low.
+
+---
+
+### Summary for Analysis 2
+
+| Aspect | Natural Domain | Medical Domain | Ratio |
+|--------|---------------|----------------|-------|
+| E_high gap (real vs synthetic) | 3.99% | 0.03% | 148× smaller |
+| Cohen's d (E_high) | 1.90 | 0.09 | 21× weaker |
+| KS statistic (E_high) | 0.93 | 0.27 | 3.4× smaller |
+| Cohen's d (Spectral Centroid) | 1.55 | 0.45 | 3.4× weaker |
+
+> **Conclusion for Analysis 2:** Using SPAI's exact frequency mask (radius=16), the high-frequency energy gap between real and synthetic images is **148× smaller** in the medical domain compared to natural images, with a Cohen's d of just 0.09 (negligible effect). This means the high-frequency filtered image — a central input to SPAI's detection mechanism — carries virtually no discriminative signal for medical images. The model cannot distinguish real from fake if both produce near-identical (near-empty) high-frequency representations.
+
+---
+
+*Analysis 3, 4, and 5 will be appended as they are completed.*
