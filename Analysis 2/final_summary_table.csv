@@ -1,0 +1,5 @@
+Group,N,E_low %,E_high %,E_high std,E_ratio (L/H),Spectral Centroid
+Real Natural,150,95.719,4.281,2.9703,43.7×,2.58
+Synthetic Natural,150,99.707,0.293,0.2069,682.1×,0.79
+Real Medical,150,99.467,0.533,0.3426,263.8×,0.62
+Synthetic Medical,150,99.440,0.560,0.2394,209.3×,0.74
