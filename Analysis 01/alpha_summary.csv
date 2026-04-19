@@ -1,0 +1,5 @@
+group,n,alpha_mean,alpha_std,alpha_min,alpha_max,r_sq_mean
+Real Medical,150,2.868,0.1826,2.0175,3.6672,0.9941
+Real Natural,150,2.5562,0.2882,1.777,3.1529,0.988
+Synthetic Medical,150,3.0384,0.1326,2.6936,3.3788,0.9958
+Synthetic Natural,150,3.3313,0.2437,2.8173,3.9686,0.9561
